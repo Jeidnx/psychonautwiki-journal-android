@@ -1,0 +1,43 @@
+name: Build App on new release
+
+on: workflow_dispatch
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up jdk
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: build app
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Setup Android SDK
+        run: |
+          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.0"
+
+      - name: Sign app APK
+        uses: ilharp/sign-android-release@nightly
+        id: sign
+        with:
+          signingKey: ${{ secrets.KEYSTORE }}
+          keyAlias: ${{ secrets.SIGNING_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+          buildToolsVersion: 35.0.0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "psychonautwiki-journal-${{ github.ref_name }}"
+          path: ${{steps.sign.outputs.signedFile}}
+          if-no-files-found: error
